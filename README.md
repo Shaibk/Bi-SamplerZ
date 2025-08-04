@@ -1,2 +1,2 @@
 # Bi-SamplerZ
-This project provides a  Hardware-Efficient Gaussian Sampler Architecture for Quantum-Resistant Falcon Signatures
+Bi-SamplerZ is a high-efficiency, fully hardware-implemented dual-path discrete Gaussian sampler designed to accelerate Falcon signature generation. By utilizing a dual-datapath architecture and an assistance mechanism, Bi-SamplerZ generates two sampling results simultaneously, improving both speed and area efficiency. Experimental results show that it reduces the sampling cycle count by 54.1%, achieving the best-known area-time product (ATP) for hardware-based sampler designs. With both ASIC and FPGA implementations, Bi-SamplerZ proves to be a high-performance solution for post-quantum cryptographic systems like Falcon.
