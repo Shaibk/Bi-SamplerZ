@@ -25,6 +25,7 @@ parameter LN2  = 72'hb17217f7d1d0000000
     output logic      MUL_data_valid,
     output logic [80:0] MUL_data_in_a,
     output logic [80:0] MUL_data_in_b,
+    output logic signed [5:0] candidate,
     output logic done
 );
 //To connect the SUB81
@@ -42,7 +43,13 @@ logic [80:0] MUL_tmp2,MUL_tmp3;// Need to store the value in advance.
 logic [80:0] x_81;
 logic [71:0] r_Ber;//Distinguish this r and r(r_72) in main routine carefully.
 
-wire b = rdm8[0]; 
+wire b = rdm8[0];
+// Keep the signed proposal together with its pre-loop arithmetic.
+always_ff @(posedge clk or negedge rst_n) begin
+    if (!rst_n) candidate <= 6'sd0;
+    else if (valid && cnt == 1)
+        candidate <= b ? 6'sd1 + $signed({1'b0,z0}) : -$signed({1'b0,z0});
+end
 //cnt logics
 always_ff @(posedge clk or negedge rst_n) begin
     if (!rst_n) begin
@@ -71,7 +78,7 @@ end
 always_comb begin
     case (cnt) 
         'd1: begin SUB_data_valid = '1;
-                  SUB_data_in_a = (b == 'd0)? {4'b0,z0,r_72} : {4'b0,z0,72'b0} + '1; 
+                  SUB_data_in_a = (b == 'd0)? {4'b0,z0,r_72} : {4'b0,z0,72'b0} + (81'd1 << 72);
                   SUB_data_in_b = (b == 'd0)? 'd0             : {9'b0,r_72};
         end
         'd4: begin SUB_data_valid = 'd1; SUB_data_in_a = MUL_tmp; SUB_data_in_b = MUL_tmp2; end
