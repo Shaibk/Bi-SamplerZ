@@ -67,11 +67,13 @@ module Bi_samplerz
     logic [63:0] int_mu_l;
     logic [63:0] int_mu_r;
     //bef_loop_l
-    logic [4:0] z0_l,z0_l_reg;
+    logic [4:0] z0_l;
+    logic signed [5:0] candidate_l, active_candidate_l, accepted_l;
     logic [62:0] z_63_l_reg;//buffer
     logic [5:0] s_6_l_reg;
     //bef_loop_r
-    logic [4:0] z0_r,z0_r_reg;
+    logic [4:0] z0_r;
+    logic signed [5:0] candidate_r, active_candidate_r, accepted_r;
     logic [62:0] z_63_r_reg;//buffer
     logic [5:0] s_6_r_reg;
     //for_loop_l
@@ -85,6 +87,7 @@ module Bi_samplerz
     //CMP results
     logic cmp_rlt_r;
     logic cmp_rlt_l;
+    logic round_complete, round_accept_l, round_accept_r;
 //Shared SUB64
     //SUB64_l
     logic [63:0] sub_data_in_a_l;
@@ -274,11 +277,11 @@ end
   assign fetch_en = fetch_en_l || fetch_en_r;
   //rdm number connection logic
 
-  always_ff @(posedge clk) if (base_rdm_req) base_rdm144 = {refill_rdm10_l[63:8],refill_rdm10_r[63:8]};
-  always_ff @(posedge clk) if (base_rdm_req) bef_rdm8_l = refill_rdm10_l[7:0];
-  always_ff @(posedge clk) if (base_rdm_req) bef_rdm8_r = refill_rdm10_r[7:0];
-  always_ff @(posedge clk) if (cmp_rdm_req_l) cmp_rdm8_l = refill_rdm1_l;
-  always_ff @(posedge clk) if (cmp_rdm_req_r) cmp_rdm8_r = refill_rdm1_r;
+  always_ff @(posedge clk) if (base_rdm_req) base_rdm144 <= {refill_rdm10_l[79:8],refill_rdm10_r[79:8]};
+  always_ff @(posedge clk) if (base_rdm_req) bef_rdm8_l <= refill_rdm10_l[7:0];
+  always_ff @(posedge clk) if (base_rdm_req) bef_rdm8_r <= refill_rdm10_r[7:0];
+  always_ff @(posedge clk) if (cmp_rdm_req_l) cmp_rdm8_l <= refill_rdm1_l;
+  always_ff @(posedge clk) if (cmp_rdm_req_r) cmp_rdm8_r <= refill_rdm1_r;
 
 //Control logics
   //R/W logic
@@ -350,22 +353,22 @@ end
       PRE  : next_state = (bef_loop_done_l && bef_loop_done_r) ? NREG : PRE;
       NREG : next_state = (assist_l || assist_r)? ALOOP : NLOOP;
       NLOOP: begin 
-        if (!(cmp_done_l && cmp_done_r)) begin
+        if (!round_complete) begin
           next_state = NLOOP;
-        end else if (cmp_rlt_l && cmp_rlt_r) begin
+        end else if (round_accept_l && round_accept_r) begin
           next_state = F_ADD;
-        end else if ((!cmp_rlt_l) && (!cmp_rlt_r)) begin
+        end else if ((!round_accept_l) && (!round_accept_r)) begin
           next_state = NREG;
         end else begin
-          next_state = (assist_l)? SWITCHL : SWITCHR;
+          next_state = (round_accept_r)? SWITCHL : SWITCHR;
         end
       end
       SWITCHL: next_state = (bef_loop_done_r)? NREG : SWITCHL;
       SWITCHR: next_state = (bef_loop_done_l)? NREG : SWITCHR;
       ALOOP : begin
-        if (!(cmp_done_l && cmp_done_r)) begin
+        if (!round_complete) begin
           next_state = ALOOP;
-        end else if (cmp_rlt_l || cmp_rlt_r) begin
+        end else if (round_accept_l || round_accept_r) begin
           next_state = F_ADD;
         end else begin
           next_state = NREG;
@@ -381,83 +384,97 @@ end
     if (!reset) begin
       assist_l <= 'b0;
       assist_r <= 'b0;
-      status_l <= 'b0;
-      status_r <= 'b0;
+
+
     end else begin
       case (state)
         INIT : begin
           assist_l <= 'b0;
           assist_r <= 'b0;
-          status_l <= 'b0;
-          status_r <= 'b0;
+
+
         end
         IDLE : begin
           assist_l <= 'b0;
           assist_r <= 'b0;
-          status_l <= 'b0;
-          status_r <= 'b0;
+
+
         end
         PRE : begin
           assist_l <= 'b0;
           assist_r <= 'b0;
-          status_l <= 'b0;
-          status_r <= 'b0;
+
+
 
         end
         NREG : begin
           assist_l <= assist_l;
           assist_r <= assist_r;
-          status_l <= 'b0;
-          status_r <= 'b0;
+
+
           s_6_l <= s_6_l_reg;//read the input
           s_6_r <= s_6_r_reg;
           z_63_l <= z_63_l_reg;
           z_63_r <= z_63_r_reg;
-          z0_l_reg <= z0_l;
-          z0_r_reg <= z0_r;
+          active_candidate_l <= candidate_l;
+          active_candidate_r <= candidate_r;
 
         end
         NLOOP : begin
           assist_l <= 'b0;
           assist_r <= 'b0;
-          status_l <= 'b0;
-          status_r <= 'b0;
+
+
 
         end
         SWITCHL : begin
           assist_l <= 'b1;
           assist_r <= 'b0;
-          status_l <= 'b0;
-          status_r <= 'b1;
+
+
         end
         SWITCHR : begin
           assist_l <= 'b0;
           assist_r <= 'b1;
-          status_l <= 'b1;
-          status_r <= 'b0;          
+
+
         end
         ALOOP : begin
           assist_l <= assist_l;
           assist_r <= assist_r;
-          status_l <= status_l;
-          status_r <= status_r;
+
+
         end
         F_ADD : begin
           assist_l <= 'b0;
           assist_r <= 'b0;
-          status_l <= 'b1;
-          status_r <= 'b1;
+
+
         end
         default: begin
           assist_l <= 'b0;
           assist_r <= 'b0;
-          status_l <= 'b0;
-          status_r <= 'b0;
+
+
       end
       endcase
     end
   end
 
+
+pair_result_bank result_bank (
+    .clk(clk), .rst_n(reset), .clear((state == IDLE) && start),
+    .round_start(state == NREG),
+    .round_active((state == NLOOP) || (state == ALOOP)),
+    .assist_l(assist_l), .assist_r(assist_r),
+    .done_l(cmp_done_l), .done_r(cmp_done_r),
+    .accept_l(cmp_rlt_l), .accept_r(cmp_rlt_r),
+    .candidate_l(active_candidate_l), .candidate_r(active_candidate_r),
+    .round_complete(round_complete),
+    .round_accept_l(round_accept_l), .round_accept_r(round_accept_r),
+    .valid_l(status_l), .valid_r(status_r),
+    .result_l(accepted_l), .result_r(accepted_r)
+);
 
 //pre_samp_valid logic
 always_ff @(posedge clk or negedge reset) begin
@@ -512,7 +529,7 @@ always_ff @(posedge clk or negedge reset) begin
 end
 
 //Final_adder logic
- assign final_adder_valid = status_l && status_r;
+ assign final_adder_valid = (state == F_ADD) && status_l && status_r;
 
 //bef_loop_valid_l logic
 always_ff @(posedge clk or negedge reset) begin
@@ -603,6 +620,7 @@ bef_loop bef_loop_l (
     .valid(bef_loop_valid_l),
     .rdm8(bef_rdm8_l),
     .z0(z0_l),
+    .candidate(candidate_l),
     .r_72((assist_r == 'b0)? r_l : r_r),
     .sqr2_isigma(sqr2_isigma),
     .z_63(z_63_l_reg),
@@ -620,6 +638,7 @@ bef_loop bef_loop_r (
     .valid(bef_loop_valid_r),
     .rdm8(bef_rdm8_r),
     .z0(z0_r),
+    .candidate(candidate_r),
     .r_72((assist_l == 'b0)? r_r : r_l),
     .sqr2_isigma(sqr2_isigma),
     .z_63(z_63_r_reg),
@@ -732,8 +751,8 @@ Fpr_adder fpr_adder_inst (
     .valid(final_adder_valid),
     .int_mu_l(int_mu_l),
     .int_mu_r(int_mu_r),
-    .z0_l(z0_l_reg),
-    .z0_r(z0_r_reg),
+    .z_l(accepted_l),
+    .z_r(accepted_r),
     .fpr_rlt_l(smp_l),
     .fpr_rlt_r(smp_r),
     .done(final_adder_done)

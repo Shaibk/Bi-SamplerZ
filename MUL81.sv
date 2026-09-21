@@ -8,6 +8,7 @@ module MUL81 (
 );
     logic [161:0] MUL_data_out_ex;
 always_comb begin
+    MUL_data_out_ex = '0;
     if (MUL_data_valid) begin
         MUL_data_out_ex = MUL_data_in_a * MUL_data_in_b;
         MUL_data_out = MUL_data_out_ex[152:72];

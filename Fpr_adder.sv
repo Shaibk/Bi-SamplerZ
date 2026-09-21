@@ -4,8 +4,8 @@ module Fpr_adder (
     input logic rst_n,
     input  logic [63:0] int_mu_l,    //In IEEE 754
     input  logic [63:0] int_mu_r,
-    input  logic [4:0] z0_l,         //5 bits binary integer.
-    input  logic [4:0] z0_r,
+    input  logic signed [5:0] z_l, // Accepted signed proposal, -18..19.
+    input  logic signed [5:0] z_r,
     output logic done,
     output logic [63:0] fpr_rlt_l   ,//In IEEE 754 
     output logic [63:0] fpr_rlt_r   
@@ -15,55 +15,26 @@ module Fpr_adder (
     logic [63:0] ieee_val_l, ieee_val_r;
     logic [63:0] a_fp64, b_fp64, z_fp64;
 
+// Small-domain signed integer to binary64 conversion; exact for -18..19.
+function automatic logic [63:0] encode_candidate(input logic signed [5:0] z);
+    logic [5:0] magnitude;
+    logic [51:0] fraction;
+    logic [10:0] exponent_bits;
+    integer leading;
+    begin
+        magnitude = z[5] ? -z : z;
+        leading = 0;
+        for (integer i=0; i<6; i=i+1) if (magnitude[i]) leading=i;
+        fraction = ({46'b0,magnitude} << (52-leading));
+        exponent_bits = 11'(1023+leading);
+        encode_candidate = (magnitude == 0) ? 64'b0 : {z[5],exponent_bits,fraction};
+    end
+endfunction
 always_comb begin
-  case (z0_l)
-    5'd0 : ieee_val_l = 64'h0000000000000000;
-    5'd1 : ieee_val_l = 64'h3ff0000000000000;
-    5'd2 : ieee_val_l = 64'h4000000000000000;
-    5'd3 : ieee_val_l = 64'h4008000000000000;
-    5'd4 : ieee_val_l = 64'h4010000000000000;
-    5'd5 : ieee_val_l = 64'h4014000000000000;
-    5'd6 : ieee_val_l = 64'h4018000000000000;
-    5'd7 : ieee_val_l = 64'h401c000000000000;
-    5'd8 : ieee_val_l = 64'h4020000000000000;
-    5'd9 : ieee_val_l = 64'h4022000000000000;
-    5'd10: ieee_val_l = 64'h4024000000000000;
-    5'd11: ieee_val_l = 64'h4026000000000000;
-    5'd12: ieee_val_l = 64'h4028000000000000;
-    5'd13: ieee_val_l = 64'h402a000000000000;
-    5'd14: ieee_val_l = 64'h402c000000000000;
-    5'd15: ieee_val_l = 64'h402e000000000000;
-    5'd16: ieee_val_l = 64'h4030000000000000;
-    5'd17: ieee_val_l = 64'h4031000000000000;
-    5'd18: ieee_val_l = 64'h4032000000000000;
-    default: ieee_val_l = 64'h0;
-  endcase
-
-  case (z0_r)
-    5'd0 : ieee_val_r = 64'h0000000000000000;
-    5'd1 : ieee_val_r = 64'h3ff0000000000000;
-    5'd2 : ieee_val_r = 64'h4000000000000000;
-    5'd3 : ieee_val_r = 64'h4008000000000000;
-    5'd4 : ieee_val_r = 64'h4010000000000000;
-    5'd5 : ieee_val_r = 64'h4014000000000000;
-    5'd6 : ieee_val_r = 64'h4018000000000000;
-    5'd7 : ieee_val_r = 64'h401c000000000000;
-    5'd8 : ieee_val_r = 64'h4020000000000000;
-    5'd9 : ieee_val_r = 64'h4022000000000000;
-    5'd10: ieee_val_r = 64'h4024000000000000;
-    5'd11: ieee_val_r = 64'h4026000000000000;
-    5'd12: ieee_val_r = 64'h4028000000000000;
-    5'd13: ieee_val_r = 64'h402a000000000000;
-    5'd14: ieee_val_r = 64'h402c000000000000;
-    5'd15: ieee_val_r = 64'h402e000000000000;
-    5'd16: ieee_val_r = 64'h4030000000000000;
-    5'd17: ieee_val_r = 64'h4031000000000000;
-    5'd18: ieee_val_r = 64'h4032000000000000;
-    default: ieee_val_r = 64'h0;
-  endcase
+    ieee_val_l = encode_candidate(z_l);
+    ieee_val_r = encode_candidate(z_r);
 end
 
-  
   //cnt logics
   always_ff @(posedge clk or negedge rst_n) begin
     if (!rst_n) begin
@@ -137,7 +108,7 @@ end
 
 
 //Instansiate the fp adder
-DW_fp_addsub u_fp_add_64 (
+DW_fp_addsub #(52, 11, 1) u_fp_add_64 (
   .a(a_fp64),
   .b(b_fp64),
   .rnd(3'b000),

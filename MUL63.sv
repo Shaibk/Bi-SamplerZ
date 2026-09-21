@@ -7,6 +7,7 @@ module MUL63 (
 
     logic [125:0] data_out_ex;
     always_comb begin
+    data_out_ex = '0;
         if (data_valid) begin
             data_out_ex = data_in_a * data_in_b;
             data_out_ab = data_out_ex[125:63];
